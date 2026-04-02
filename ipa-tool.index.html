@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Connected Speech · IPA</title>
+
+  <!-- PWA Meta -->
+  <meta name="application-name" content="IPA Tool" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="IPA Tool" />
+  <meta name="theme-color" content="#0d1117" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="description" content="IPA Transcriber for connected speech with grammar checker" />
+
+  <!-- Inline Manifest via data URI -->
+  <link rel="manifest" href="data:application/manifest+json,{
+    %22name%22:%22Connected Speech IPA%22,
+    %22short_name%22:%22IPA Tool%22,
+    %22description%22:%22IPA Transcriber for connected speech%22,
+    %22start_url%22:%22.%22,
+    %22display%22:%22standalone%22,
+    %22background_color%22:%22%230d1117%22,
+    %22theme_color%22:%22%230d1117%22,
+    %22orientation%22:%22portrait%22,
+    %22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%230d1117'/%3E%3Ctext x='256' y='320' font-size='280' text-anchor='middle' fill='%23d4a017' font-family='serif'%3Eʃ%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22512x512%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any maskable%22}]
+  }" />
+
+  <!-- Apple touch icon (inline SVG as data URI) -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%230d1117'/><text x='256' y='340' font-size='300' text-anchor='middle' fill='%23d4a017' font-family='serif'>ʃ</text></svg>" />
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+
+    :root {
+      --bg: #0d1117;
+      --surface: rgba(255,255,255,0.03);
+      --border: #1e1e1e;
+      --border-mid: #2a2a2a;
+      --gold: #d4a017;
+      --gold-dim: rgba(212,160,23,0.12);
+      --gold-muted: #8a7a50;
+      --text: #e6d5b8;
+      --text-dim: #c8b888;
+      --text-muted: #7a6a50;
+      --text-faint: #5a5a5a;
+      --text-ghost: #3a3a3a;
+      --green: #2ecc71;
+      --green-bg: rgba(39,174,96,0.08);
+      --green-border: #27ae60;
+      --red: #e74c3c;
+      --red-bg: rgba(192,57,43,0.1);
+      --red-border: #c0392b;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+
+    #app {
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+      padding: calc(var(--safe-top) + 1.5rem) 1.25rem calc(var(--safe-bottom) + 2rem);
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header { margin-bottom: 1.75rem; }
+    .header h1 {
+      font-size: clamp(1.6rem, 6vw, 2.6rem);
+      color: var(--gold);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 0.3rem;
+    }
+    .header p {
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    /* Section label */
+    .label {
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 0.55rem;
+      display: block;
+    }
+
+    /* Dialect */
+    .dialect-row { display: flex; gap: 0.65rem; margin-bottom: 1.4rem; }
+    .dialect-btn {
+      flex: 1;
+      padding: 0.7rem 0.9rem;
+      background: transparent;
+      border: 1px solid var(--border-mid);
+      border-radius: 6px;
+      color: var(--text-faint);
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.18s;
+      -webkit-appearance: none;
+    }
+    .dialect-btn.active {
+      background: var(--gold-dim);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+    .dialect-btn .sub {
+      font-size: 0.6rem;
+      font-weight: 400;
+      margin-top: 0.2rem;
+      color: var(--text-ghost);
+    }
+    .dialect-btn.active .sub { color: var(--gold-muted); }
+
+    /* API Key */
+    .apikey-section { margin-bottom: 1.4rem; }
+    .apikey-wrap { position: relative; }
+    .apikey-wrap input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 6px;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 0.75rem 2.5rem 0.75rem 0.9rem;
+      outline: none;
+      -webkit-appearance: none;
+      letter-spacing: 0.05em;
+    }
+    .apikey-wrap input::placeholder { color: var(--text-faint); }
+    .apikey-toggle {
+      position: absolute;
+      right: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-faint);
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-family: inherit;
+      padding: 0;
+    }
+    .apikey-hint {
+      font-size: 0.6rem;
+      color: var(--text-faint);
+      margin-top: 0.4rem;
+      line-height: 1.5;
+    }
+    .apikey-hint a { color: var(--gold-muted); }
+
+    /* Textarea */
+    .input-section { margin-bottom: 1.1rem; }
+    .input-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; align-items: center; }
+    .char-count { font-size: 0.6rem; color: var(--text-faint); }
+    textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 6px;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 0.88rem;
+      padding: 0.9rem;
+      resize: vertical;
+      outline: none;
+      line-height: 1.65;
+      min-height: 140px;
+      -webkit-appearance: none;
+    }
+    textarea::placeholder { color: var(--text-faint); line-height: 1.8; }
+
+    /* Timer */
+    .timer { margin-bottom: 0.9rem; }
+    .timer-row { display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-faint); margin-bottom: 0.3rem; }
+    .timer-track { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .timer-bar { height: 100%; width: 0; background: var(--gold); border-radius: 2px; transition: width 1s linear, background 1s; }
+
+    /* Buttons */
+    .btn-row { display: flex; gap: 0.65rem; margin-bottom: 1.75rem; }
+    .btn {
+      flex: 1;
+      padding: 0.95rem 0.5rem;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.18s;
+      -webkit-appearance: none;
+      border: none;
+    }
+    .btn-primary { background: var(--gold); color: var(--bg); border: none; }
+    .btn-primary:disabled { background: #1a1a1a; color: var(--text-faint); cursor: not-allowed; }
+    .btn-outline { background: transparent; border: 1px solid var(--gold); color: var(--gold); }
+    .btn-outline:disabled { border-color: var(--border-mid); color: var(--text-faint); cursor: not-allowed; }
+
+    /* Install banner */
+    #install-banner {
+      display: none;
+      background: var(--gold-dim);
+      border: 1px solid rgba(212,160,23,0.3);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.72rem;
+      color: var(--gold-muted);
+      line-height: 1.5;
+    }
+    #install-banner button {
+      background: var(--gold);
+      color: var(--bg);
+      border: none;
+      border-radius: 4px;
+      padding: 0.35rem 0.75rem;
+      font-family: inherit;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      display: block;
+    }
+
+    /* Tabs */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 1.1rem; }
+    .tab {
+      padding: 0.5rem 1.2rem;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-faint);
+      font-family: inherit;
+      font-size: 0.62rem;
+      letter-spacing: 0.15em;
+      cursor: pointer;
+      transition: all 0.18s;
+      margin-bottom: -1px;
+    }
+    .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    /* Error box */
+    .error-box {
+      background: var(--red-bg);
+      border: 1px solid var(--red-border);
+      border-radius: 6px;
+      padding: 0.85rem;
+      color: var(--red);
+      font-size: 0.78rem;
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+
+    /* IPA results */
+    .ipa-results { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 1.25rem; }
+    .ipa-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+    }
+    .ipa-original { font-size: 0.72rem; color: var(--text-faint); margin-bottom: 0.45rem; }
+    .ipa-notation { font-size: 1.25rem; color: var(--gold); line-height: 1.45; margin-bottom: 0.5rem; }
+    .ipa-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .ipa-tag {
+      font-size: 0.58rem;
+      background: rgba(212,160,23,0.07);
+      border: 1px solid rgba(212,160,23,0.18);
+      color: var(--gold-muted);
+      padding: 0.18rem 0.45rem;
+      border-radius: 3px;
+      letter-spacing: 0.05em;
+    }
+
+    /* Grammar results */
+    .grammar-results { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 1.25rem; }
+    .grammar-card {
+      border-radius: 6px;
+      padding: 0.9rem;
+    }
+    .grammar-card.correct { background: var(--green-bg); border: 1px solid var(--green-border); }
+    .grammar-card.error { background: var(--red-bg); border: 1px solid var(--red-border); }
+    .grammar-card.colloquial { background: rgba(212,160,23,0.07); border: 1px solid rgba(212,160,23,0.25); }
+    .grammar-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem; gap: 0.75rem; }
+    .grammar-original { font-size: 0.8rem; color: var(--text-dim); flex: 1; line-height: 1.4; }
+    .grammar-badge { font-size: 0.55rem; letter-spacing: 0.1em; white-space: nowrap; }
+    .grammar-card.correct .grammar-badge { color: var(--green); }
+    .grammar-card.error .grammar-badge { color: var(--red); }
+    .grammar-card.colloquial .grammar-badge { color: var(--gold); }
+    .grammar-corrected {
+      font-size: 0.78rem;
+      color: var(--green);
+      border-left: 2px solid var(--green-border);
+      padding-left: 0.6rem;
+      margin: 0.35rem 0;
+      line-height: 1.4;
+    }
+    .grammar-explanation { font-size: 0.7rem; color: #6a6a6a; margin-top: 0.25rem; line-height: 1.5; }
+
+    /* Summary footer */
+    .summary {
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+      margin-top: 0.5rem;
+    }
+    .summary p { font-size: 0.78rem; color: #6a6a6a; line-height: 1.6; }
+
+    /* Hidden */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>/kəˈnektɪd ˈspiːtʃ/</h1>
+    <p>IPA Transcriber · Connected Speech</p>
+  </div>
+
+  <!-- Install Banner (shown when PWA install is available) -->
+  <div id="install-banner">
+    📲 Add to your home screen for offline access
+    <button id="install-btn">INSTALL APP</button>
+  </div>
+
+  <!-- API Key -->
+  <div class="apikey-section">
+    <span class="label">Anthropic API Key</span>
+    <div class="apikey-wrap">
+      <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" autocorrect="off" spellcheck="false" />
+      <button class="apikey-toggle" id="key-toggle" onclick="toggleKey()">SHOW</button>
+    </div>
+    <p class="apikey-hint">Your key is stored locally and never sent anywhere except Anthropic's API. Get one at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></p>
+  </div>
+
+  <!-- Dialect -->
+  <span class="label">Dialect</span>
+  <div class="dialect-row">
+    <button class="dialect-btn active" id="btn-rp" onclick="setDialect('rp')">
+      Modern RP
+      <div class="sub">Non-rhotic · British</div>
+    </button>
+    <button class="dialect-btn" id="btn-ga" onclick="setDialect('ga')">
+      General American
+      <div class="sub">Rhotic · Flapping</div>
+    </button>
+  </div>
+
+  <!-- Input -->
+  <div class="input-section">
+    <div class="input-header">
+      <span class="label" style="margin-bottom:0">Dialogue Input</span>
+      <span class="char-count" id="char-count">0 chars</span>
+    </div>
+    <textarea id="input-text"
+      placeholder="One line per speaker turn.&#10;&#10;Example:&#10;Wanna grab a cup of coffee?&#10;Yeah, that'd be great. Where d'you wanna go?"
+      oninput="onInput()"
+      onkeydown="onKeyDown(event)"
+      rows="6"
+    ></textarea>
+  </div>
+
+  <!-- Timer -->
+  <div class="timer hidden" id="timer">
+    <div class="timer-row">
+      <span id="elapsed-label">⏱ 0s elapsed</span>
+      <span id="countdown-label">30s remaining</span>
+    </div>
+    <div class="timer-track">
+      <div class="timer-bar" id="timer-bar"></div>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-transcribe" onclick="transcribe()" disabled>
+      ▶ TRANSCRIBE TO IPA
+    </button>
+    <button class="btn btn-outline" id="btn-grammar" onclick="checkGrammar()" disabled>
+      ⚙ CHECK GRAMMAR
+    </button>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box hidden" id="error-box"></div>
+
+  <!-- Tabs -->
+  <div class="tabs hidden" id="tabs">
+    <button class="tab active" id="tab-ipa" onclick="switchTab('ipa')">IPA</button>
+    <button class="tab" id="tab-grammar" onclick="switchTab('grammar')">GRAMMAR</button>
+  </div>
+
+  <!-- IPA Results -->
+  <div id="ipa-panel" class="hidden"></div>
+
+  <!-- Grammar Results -->
+  <div id="grammar-panel" class="hidden"></div>
+
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────
+  let dialect = 'rp';
+  let activeTab = 'ipa';
+  let ipaResult = null;
+  let grammarResult = null;
+  let timerInterval = null;
+  let elapsed = 0;
+  const LIMIT = 30;
+
+  // ── Persist API key ────────────────────────────────────
+  const keyInput = document.getElementById('api-key');
+  const saved = localStorage.getItem('ipa_api_key');
+  if (saved) keyInput.value = saved;
+  keyInput.addEventListener('input', () => localStorage.setItem('ipa_api_key', keyInput.value.trim()));
+
+  function toggleKey() {
+    const t = document.getElementById('key-toggle');
+    keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+    t.textContent = keyInput.type === 'password' ? 'SHOW' : 'HIDE';
+  }
+
+  // ── Dialect ────────────────────────────────────────────
+  function setDialect(d) {
+    dialect = d;
+    document.getElementById('btn-rp').classList.toggle('active', d === 'rp');
+    document.getElementById('btn-ga').classList.toggle('active', d === 'ga');
+  }
+
+  // ── Input ──────────────────────────────────────────────
+  function onInput() {
+    const val = document.getElementById('input-text').value;
+    document.getElementById('char-count').textContent = val.length + ' chars';
+    const hasInput = val.trim().length > 0;
+    document.getElementById('btn-transcribe').disabled = !hasInput;
+    document.getElementById('btn-grammar').disabled = !hasInput;
+  }
+
+  function onKeyDown(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') transcribe();
+  }
+
+  // ── Timer ──────────────────────────────────────────────
+  function startTimer() {
+    elapsed = 0;
+    clearInterval(timerInterval);
+    document.getElementById('timer').classList.remove('hidden');
+    updateTimer();
+    timerInterval = setInterval(() => {
+      elapsed++;
+      updateTimer();
+    }, 1000);
+  }
+
+  function updateTimer() {
+    const remaining = Math.max(0, LIMIT - elapsed);
+    const progress = Math.min(elapsed / LIMIT, 1);
+    document.getElementById('elapsed-label').textContent = `⏱ ${elapsed}s elapsed`;
+    document.getElementById('countdown-label').textContent = `${remaining}s remaining`;
+    const bar = document.getElementById('timer-bar');
+    bar.style.width = (progress * 100) + '%';
+    bar.style.background = progress < 0.5 ? '#d4a017' : progress < 0.8 ? '#e07b00' : '#c0392b';
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    document.getElementById('timer').classList.add('hidden');
+  }
+
+  // ── Loading state ──────────────────────────────────────
+  function setLoading(mode) {
+    const tBtn = document.getElementById('btn-transcribe');
+    const gBtn = document.getElementById('btn-grammar');
+    if (mode === 'ipa') {
+      tBtn.textContent = '▶ TRANSCRIBING...';
+      tBtn.disabled = true;
+      gBtn.disabled = true;
+    } else if (mode === 'grammar') {
+      gBtn.textContent = '⚙ CHECKING...';
+      gBtn.disabled = true;
+      tBtn.disabled = true;
+    } else {
+      tBtn.textContent = '▶ TRANSCRIBE TO IPA';
+      gBtn.textContent = '⚙ CHECK GRAMMAR';
+      const hasInput = document.getElementById('input-text').value.trim().length > 0;
+      tBtn.disabled = !hasInput;
+      gBtn.disabled = !hasInput;
+    }
+  }
+
+  function showError(msg) {
+    const box = document.getElementById('error-box');
+    box.textContent = '⚠ ' + msg;
+    box.classList.remove('hidden');
+  }
+
+  function clearError() {
+    document.getElementById('error-box').classList.add('hidden');
+  }
+
+  // ── API call ───────────────────────────────────────────
+  async function callAPI(systemPrompt, userContent) {
+    const apiKey = keyInput.value.trim();
+    if (!apiKey) throw new Error('Please enter your Anthropic API key above.');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1500,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userContent }]
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || 'API error ' + response.status);
+    const raw = data.content.map(b => b.text || '').join('');
+    const clean = raw.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  }
+
+  // ── IPA Transcription ──────────────────────────────────
+  const IPA_PROMPT = `You are an expert phonetician specialising in IPA (International Phonetic Alphabet) transcription of English connected speech.
+
+Given dialogue or text input, transcribe it into IPA notation showing natural connected speech phenomena such as:
+- Assimilation (e.g. "good boy" → /ɡʊb bɔɪ/)
+- Elision (e.g. "next day" → /neks deɪ/)
+- Linking (e.g. "far away" → /fɑːr əˈweɪ/)
+- Weak forms (e.g. "and" → /ən/, "of" → /əv/)
+- Contractions and reductions
+
+For MODERN RP (British, non-rhotic):
+- Use non-rhotic transcription (no /r/ before consonants or pause)
+- TRAP = /æ/, BATH = /ɑː/, LOT = /ɒ/, THOUGHT = /ɔː/
+
+For GENERAL AMERICAN (Rhotic, with flapping):
+- Use rhotic /r/ in all positions
+- BATH = /æ/, LOT = /ɑː/, intervocalic /t/ → /t̬/ (flap)
+- THOUGHT = /ɔː/ or merged with LOT for cot-caught merger speakers
+
+Output format — respond ONLY with valid JSON, no markdown, no explanation:
+{
+  "lines": [
+    {
+      "original": "the original line of text",
+      "ipa": "/IPA transcription/",
+      "notes": ["optional connected speech note 1", "optional note 2"]
+    }
+  ],
+  "summary": "Brief summary of main connected speech features present"
+}`;
+
+  async function transcribe() {
+    const input = document.getElementById('input-text').value.trim();
+    if (!input) return;
+    clearError();
+    setLoading('ipa');
+    startTimer();
+    activeTab = 'ipa';
+
+    try {
+      const parsed = await callAPI(
+        IPA_PROMPT,
+        `Dialect: ${dialect === 'rp' ? 'Modern RP (British)' : 'General American'}\n\nText to transcribe:\n${input}`
+      );
+      ipaResult = parsed;
+      renderIPAResult();
+      updateTabs();
+    } catch (err) {
+      showError(err.message || 'Something went wrong.');
+    } finally {
+      setLoading(null);
+      stopTimer();
+    }
+  }
+
+  function renderIPAResult() {
+    if (!ipaResult) return;
+    const panel = document.getElementById('ipa-panel');
+    let html = `<div style="display:flex;justify-content:space-between;margin-bottom:1rem;">
+      <span class="label" style="margin-bottom:0">Connected Speech IPA</span>
+      <span style="font-size:0.6rem;color:var(--text-faint)">${dialect === 'rp' ? 'MODERN RP' : 'GENERAL AMERICAN'}</span>
+    </div>`;
+    html += `<div class="ipa-results">`;
+    for (const line of ipaResult.lines) {
+      html += `<div class="ipa-card">
+        <div class="ipa-original">${esc(line.original)}</div>
+        <div class="ipa-notation">${esc(line.ipa)}</div>`;
+      if (line.notes && line.notes.length) {
+        html += `<div class="ipa-tags">` + line.notes.map(n => `<span class="ipa-tag">${esc(n)}</span>`).join('') + `</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    if (ipaResult.summary) {
+      html += `<div class="summary"><span class="label">Connected Speech Features</span><p>${esc(ipaResult.summary)}</p></div>`;
+    }
+    panel.innerHTML = html;
+    panel.classList.remove('hidden');
+  }
+
+  // ── Grammar Check ──────────────────────────────────────
+  const GRAMMAR_PROMPT = `You are an expert English grammar checker. Analyse the given text line by line.
+
+For each line:
+- Identify any grammar errors, awkward phrasing, or non-standard usage
+- Distinguish between genuine errors vs. intentional colloquial/spoken forms (e.g. "Wanna", "d'you", "gonna" are acceptable in dialogue)
+- Provide a corrected version if needed, or confirm the line is correct
+- Give a brief explanation of any issue found
+
+Respond ONLY with valid JSON, no markdown, no explanation:
+{
+  "lines": [
+    {
+      "original": "original line",
+      "status": "correct",
+      "corrected": "corrected version or same as original if correct",
+      "explanation": "brief explanation or empty string if no issue"
+    }
+  ],
+  "overall": "One sentence overall assessment"
+}
+
+Status values: "correct", "error", or "colloquial"`;
+
+  async function checkGrammar() {
+    const input = document.getElementById('input-text').value.trim();
+    if (!input) return;
+    clearError();
+    setLoading('grammar');
+    startTimer();
+    activeTab = 'grammar';
+
+    try {
+      const parsed = await callAPI(GRAMMAR_PROMPT, `Text to check:\n${input}`);
+      grammarResult = parsed;
+      renderGrammarResult();
+      updateTabs();
+    } catch (err) {
+      showError(err.message || 'Something went wrong.');
+    } finally {
+      setLoading(null);
+      stopTimer();
+    }
+  }
+
+  function renderGrammarResult() {
+    if (!grammarResult) return;
+    const panel = document.getElementById('grammar-panel');
+    let html = `<span class="label">Grammar Analysis</span>`;
+    html += `<div class="grammar-results">`;
+    for (const line of grammarResult.lines) {
+      const badge = line.status === 'correct' ? '✓ CORRECT' : line.status === 'error' ? '✗ ERROR' : '~ COLLOQUIAL';
+      html += `<div class="grammar-card ${line.status}">
+        <div class="grammar-top">
+          <div class="grammar-original">${esc(line.original)}</div>
+          <span class="grammar-badge">${badge}</span>
+        </div>`;
+      if (line.status === 'error' && line.corrected && line.corrected !== line.original) {
+        html += `<div class="grammar-corrected">→ ${esc(line.corrected)}</div>`;
+      }
+      if (line.explanation) {
+        html += `<div class="grammar-explanation">${esc(line.explanation)}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    if (grammarResult.overall) {
+      html += `<div class="summary"><span class="label">Overall Assessment</span><p>${esc(grammarResult.overall)}</p></div>`;
+    }
+    panel.innerHTML = html;
+    panel.classList.remove('hidden');
+  }
+
+  // ── Tabs ───────────────────────────────────────────────
+  function updateTabs() {
+    const hasIpa = ipaResult !== null;
+    const hasGrammar = grammarResult !== null;
+    const tabsEl = document.getElementById('tabs');
+
+    if (!hasIpa && !hasGrammar) { tabsEl.classList.add('hidden'); return; }
+    tabsEl.classList.remove('hidden');
+
+    document.getElementById('tab-ipa').classList.toggle('hidden', !hasIpa);
+    document.getElementById('tab-grammar').classList.toggle('hidden', !hasGrammar);
+
+    switchTab(activeTab);
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('tab-ipa').classList.toggle('active', tab === 'ipa');
+    document.getElementById('tab-grammar').classList.toggle('active', tab === 'grammar');
+    document.getElementById('ipa-panel').classList.toggle('hidden', tab !== 'ipa');
+    document.getElementById('grammar-panel').classList.toggle('hidden', tab !== 'grammar');
+  }
+
+  // ── Helpers ────────────────────────────────────────────
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── PWA Install ────────────────────────────────────────
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('install-banner').style.display = 'block';
+  });
+
+  document.getElementById('install-btn').addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') document.getElementById('install-banner').style.display = 'none';
+    deferredPrompt = null;
+  });
+
+  window.addEventListener('appinstalled', () => {
+    document.getElementById('install-banner').style.display = 'none';
+  });
+
+  // ── Service Worker (inline) ────────────────────────────
+  if ('serviceWorker' in navigator) {
+    const swCode = `
+      const CACHE = 'ipa-tool-v1';
+      self.addEventListener('install', e => {
+        self.skipWaiting();
+      });
+      self.addEventListener('activate', e => {
+        e.waitUntil(clients.claim());
+      });
+      self.addEventListener('fetch', e => {
+        // Only cache same-origin and Google Fonts; pass through API calls
+        if (e.request.url.includes('anthropic.com')) return;
+        e.respondWith(
+          caches.match(e.request).then(cached => cached || fetch(e.request).then(resp => {
+            if (resp && resp.status === 200 && (e.request.url.startsWith(self.location.origin) || e.request.url.includes('fonts.g'))) {
+              const clone = resp.clone();
+              caches.open(CACHE).then(c => c.put(e.request, clone));
+            }
+            return resp;
+          }).catch(() => cached))
+        );
+      });
+    `;
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    const swUrl = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl).catch(() => {});
+  }
+</script>
+</body>
+</html>
